@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Apollo AI</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:sans-serif;background:#0f1117;color:#eee;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:block}
+header{padding:12px;background:#1a1d27;font-weight:bold;font-size:18px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+header .left{display:flex;align-items:center;gap:10px}
+header .logo{width:24px;height:24px;color:#a78bfa}
+.hbtns{display:flex;gap:4px}
+.hbtns button,#menuBtn{background:none;border:none;color:#ddd;cursor:pointer;padding:6px;border-radius:8px;display:flex}
+.hbtns button.on{background:#16a34a}
+#chat{flex:1;overflow-y:auto;padding:12px}
+.msg{margin:8px 0;padding:10px 12px;border-radius:12px;max-width:85%;white-space:pre-wrap;line-height:1.4;word-wrap:break-word}
+.msg img{max-width:100%;border-radius:8px;display:block;margin-bottom:6px}
+.user{background:#2563eb;margin-left:auto}
+.bot{background:#1f2330}
+.error{background:#4a1d1d}
+
+/* Durum mesajı */
+#status{display:none;padding:6px 12px;font-size:13px;background:#1a1d27;color:#fbbf24;border-top:1px solid #2a2e3b}
+
+/* Kod bloğu */
+.codebox{margin:8px 0;border-radius:10px;overflow:hidden;background:#0b0d14;border:1px solid #2a2e3b;white-space:normal}
+.codehead{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:#1a1d27;font-size:12px;color:#9ca3af}
+.codehead button{background:#2a2e3b;border:none;color:#fff;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer}
+.codebox pre{margin:0;padding:10px;white-space:pre;overflow-x:auto;font-size:13px;line-height:1.45;font-family:monospace;color:#e5e7eb}
+
+/* Menü */
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:15}
+#overlay.show{display:block}
+#drawer{position:fixed;top:0;left:0;bottom:0;width:80%;max-width:300px;background:#141722;transform:translateX(-105%);transition:transform .25s ease;z-index:20;display:flex;flex-direction:column;padding:12px;box-shadow:2px 0 12px rgba(0,0,0,.5)}
+#drawer.open{transform:none}
+#drawer h3{margin:14px 4px 8px;font-size:13px;color:#888;font-weight:normal}
+#newChat{display:flex;align-items:center;gap:8px;background:#2a2e3b;color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;cursor:pointer}
+#chatList{flex:1;overflow-y:auto}
+.chatItem{display:flex;align-items:center;gap:6px;padding:10px 10px 10px 12px;border-radius:10px;cursor:pointer;margin-bottom:4px}
+.chatItem:hover,.chatItem.active{background:#1f2330}
+.chatItem span{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:15px}
+.chatItem .del{background:none;border:none;color:#888;cursor:pointer;padding:4px;border-radius:6px;display:flex}
+.chatItem .del:hover{color:#f87171}
+.empty{color:#777;font-size:14px;text-align:center;margin-top:20px}
+
+/* Alt bar */
+#preview{display:none;align-items:center;gap:8px;padding:8px 12px;background:#1a1d27}
+#preview img{height:56px;border-radius:8px}
+#preview button{background:#2a2e3b;border:none;color:#fff;border-radius:8px;padding:8px;display:flex;cursor:pointer}
+form{display:flex;padding:10px;gap:6px;background:#1a1d27}
+input[type=text]{flex:1;min-width:0;padding:12px;border-radius:10px;border:none;background:#2a2e3b;color:#fff;font-size:16px}
+input:disabled{opacity:0.5}
+button.icon{padding:10px;border:none;border-radius:10px;background:#2a2e3b;color:#fff;cursor:pointer;display:flex;align-items:center}
+button.icon.active{background:#dc2626;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.6}}
+button.send{padding:12px 14px;border:none;border-radius:10px;background:#7c3aed;color:#fff;font-size:16px;cursor:pointer}
+button:disabled{opacity:0.5}
+</style>
+</head>
+<body>
+
+<!-- SVG tanımları -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></symbol>
+    <symbol id="i-headphones" viewBox="0 0 24 24"><path d="M4 14v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1"/><rect x="17" y="14" width="4" height="6" rx="1"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M14 9l2 2"/></symbol>
+    <symbol id="i-clip" viewBox="0 0 24 24"><path d="M21 11l-9 9a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-rocket" viewBox="0 0 24 24"><path d="M12 2c3 2 5 6 5 10l-2 3H9l-2-3c0-4 2-8 5-10z"/><circle cx="12" cy="10" r="2"/><path d="M9 15l-3 4 3-1M15 15l3 4-3-1"/></symbol>
+  </defs>
+</svg>
+
+<header>
+  <div class="left">
+    <button id="menuBtn" title="Sohbetler"><svg class="i"><use href="#i-menu"/></svg></button>
+    <svg class="i logo"><use href="#i-rocket"/></svg>
+    <span>Apollo AI</span>
+  </div>
+  <div class="hbtns">
+    <button id="voiceBtn" title="Sesli mod"><svg class="i"><use href="#i-headphones"/></svg></button>
+    <button id="resetKey" title="API anahtar&#305;"><svg class="i"><use href="#i-key"/></svg></button>
+  </div>
+</header>
+
+<div id="overlay"></div>
+<aside id="drawer">
+  <button id="newChat"><svg class="i" style="width:18px;height:18px"><use href="#i-plus"/></svg>Yeni sohbet</button>
+  <h3>Sohbetler</h3>
+  <div id="chatList"></div>
+</aside>
+
+<div id="chat"></div>
+<div id="status"></div>
+<div id="preview">
+  <img id="previewImg" alt="">
+  <button id="removeImg" type="button" title="Kald&#305;r"><svg class="i" style="width:18px;height:18px"><use href="#i-x"/></svg></button>
+</div>
+<form id="form">
+  <button type="button" class="icon" id="attachBtn" title="Foto&#287;raf ekle"><svg class="i"><use href="#i-clip"/></svg></button>
+  <input type="file" id="file" accept="image/*" hidden>
+  <input type="text" id="input" placeholder="Bir &#351;ey yaz..." autocomplete="off">
+  <button type="button" class="icon" id="micBtn" title="Konu&#351;"><svg class="i"><use href="#i-mic"/></svg></button>
+  <button class="send" id="sendBtn" type="submit">G&#246;nder</button>
+</form>
+
+<script>
+const chatEl = document.getElementById('chat');
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+const attachBtn = document.getElementById('attachBtn');
+const fileInput = document.getElementById('file');
+const micBtn = document.getElementById('micBtn');
+const voiceBtn = document.getElementById('voiceBtn');
+const preview = document.getElementById('preview');
+const previewImg = document.getElementById('previewImg');
+const drawer = document.getElementById('drawer');
+const overlay = document.getElementById('overlay');
+const chatList = document.getElementById('chatList');
+const statusEl = document.getElementById('status');
+
+// Daha hafif ve hizli model. Hala yavassa 'gemini-3.8-flash' deneyebilirsin.
+const MODEL = 'gemini-3.5-flash-lite';
+const TIMEOUT_MS = 90000;
+const CHATS_KEY = 'apollo_chats';
+const OLD_HIST_KEY = 'apollo_history';
+const VOICE_KEY = 'apollo_voice';
+const SYSTEM_TEXT = 'Senin ad\u0131n Apollo AI. Kullan\u0131c\u0131yla T\u00fcrk\u00e7e konu\u015f, k\u0131sa ve net cevap ver.';
+
+let pendingImage = null;
+let voiceMode = localStorage.getItem(VOICE_KEY) === '1';
+let chats = [];
+let currentId = null;
+
+// ---------- Durum mesaji (hatalari ekranda goster) ----------
+let statusTimer = null;
+function showStatus(msg, ms = 5000) {
+  statusEl.textContent = msg;
+  statusEl.style.display = 'block';
+  clearTimeout(statusTimer);
+  if (ms) statusTimer = setTimeout(() => (statusEl.style.display = 'none'), ms);
+}
+
+// SVG ikon yardimcisi
+function icon(id, size) {
+  const s = size ? ` style="width:${size}px;height:${size}px"` : '';
+  return `<svg class="i"${s}><use href="#${id}"/></svg>`;
+}
+
+// ---------- Sohbet depolama ----------
+function makeChat() {
+  return {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    title: 'Yeni sohbet',
+    messages: []
+  };
+}
+
+function loadChats() {
+  try { chats = JSON.parse(localStorage.getItem(CHATS_KEY) || '[]'); } catch { chats = []; }
+  if (!chats.length) {
+    const c = makeChat();
+    try {
+      const old = JSON.parse(localStorage.getItem(OLD_HIST_KEY) || '[]');
+      if (old.length) {
+        c.messages = old;
+        c.title = titleFrom(old[0].parts.map(p => p.text || '').join(''));
+      }
+    } catch {}
+    chats.push(c);
+  }
+  currentId = chats[0].id;
+}
+
+function saveChats() {
+  const light = chats.map(c => ({
+    id: c.id,
+    title: c.title,
+    messages: c.messages.map(m => ({
+      role: m.role,
+      parts: m.parts.map(p => p.inlineData ? { text: '[foto\u011fraf]' } : { text: p.text })
+    }))
+  }));
+  try { localStorage.setItem(CHATS_KEY, JSON.stringify(light)); } catch {}
+}
+
+function cur() {
+  return chats.find(c => c.id === currentId);
+}
+
+function titleFrom(text) {
+  const t = (text || '').replace(/\s+/g, ' ').trim();
+  if (!t) return 'Foto\u011fraf';
+  return t.length > 32 ? t.slice(0, 32) + '\u2026' : t;
+}
+
+// ---------- Kod blogu ve kopyalama ----------
+function copyText(t) {
+  if (navigator.clipboard) {
+    return navigator.clipboard.writeText(t).catch(() => fallbackCopy(t));
+  }
+  return Promise.resolve(fallbackCopy(t));
+}
+
+function fallbackCopy(t) {
+  const ta = document.createElement('textarea');
+  ta.value = t;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  const ok = document.execCommand('copy');
+  ta.remove();
+  if (!ok) throw new Error('Kopyalama ba\u015far\u0131s\u0131z');
+}
+
+function makeCodeBox(lang, code) {
+  const box = document.createElement('div');
+  box.className = 'codebox';
+
+  const head = document.createElement('div');
+  head.className = 'codehead';
+
+  const label = document.createElement('span');
+  label.textContent = lang || 'kod';
+
+  const btn = document.createElement('button');
+  btn.textContent = 'Kopyala';
+  btn.onclick = () => {
+    copyText(code)
+      .then(() => {
+        btn.textContent = '\u2713 Kopyaland\u0131';
+        setTimeout(() => (btn.textContent = 'Kopyala'), 1500);
+      })
+      .catch(() => {
+        btn.textContent = 'Kopyalanamad\u0131';
+        setTimeout(() => (btn.textContent = 'Kopyala'), 1500);
+      });
+  };
+
+  head.appendChild(label);
+  head.appendChild(btn);
+
+  const pre = document.createElement('pre');
+  const codeEl = document.createElement('code');
+  codeEl.textContent = code;
+  pre.appendChild(codeEl);
+
+  box.appendChild(head);
+  box.appendChild(pre);
+  return box;
+}
+
+// Bot cevabini duz metin ve kod bloklarina ayirarak ekrana koyar
+function fillContent(el, text) {
+  el.textContent = '';
+  const re = /```([\w+#.-]*)[ \t]*\n?([\s\S]*?)```/g;
+  let last = 0;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const before = text.slice(last, m.index).replace(/\n+$/, '');
+    if (before) el.appendChild(document.createTextNode(before));
+    el.appendChild(makeCodeBox(m[1], m[2].replace(/\n$/, '')));
+    last = re.lastIndex;
+  }
+  const rest = text.slice(last);
+  if (rest) el.appendChild(document.createTextNode(rest));
+}
+
+// ---------- Ekrani ciz ----------
+function renderChat() {
+  chatEl.innerHTML = '';
+  cur().messages.forEach(m => {
+    const hasImg = m.parts.some(p => p.inlineData);
+    const text = m.parts.map(p => p.text || '').join('') || (hasImg ? 'Foto\u011fraf' : '');
+    addMsg(text, m.role === 'user' ? 'user' : 'bot');
+  });
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function renderList() {
+  chatList.innerHTML = '';
+  if (!chats.length) {
+    chatList.innerHTML = '<div class="empty">Hen\u00fcz sohbet yok</div>';
+    return;
+  }
+  chats.forEach(c => {
+    const item = document.createElement('div');
+    item.className = 'chatItem' + (c.id === currentId ? ' active' : '');
+
+    const title = document.createElement('span');
+    title.textContent = c.title;
+
+    const del = document.createElement('button');
+    del.className = 'del';
+    del.title = 'Sohbeti sil';
+    del.innerHTML = icon('i-x', 18);
+    del.onclick = (e) => {
+      e.stopPropagation();
+      deleteChat(c.id);
+    };
+
+    item.appendChild(title);
+    item.appendChild(del);
+    item.onclick = () => openChat(c.id);
+    chatList.appendChild(item);
+  });
+}
+
+// ---------- Sohbet islemleri ----------
+function newChat() {
+  const c = makeChat();
+  chats.unshift(c);
+  currentId = c.id;
+  saveChats();
+  renderChat();
+  renderList();
+  closeDrawer();
+}
+
+function openChat(id) {
+  currentId = id;
+  clearPending();
+  renderChat();
+  renderList();
+  closeDrawer();
+}
+
+function deleteChat(id) {
+  if (!confirm('Bu sohbet silinsin mi?')) return;
+  chats = chats.filter(c => c.id !== id);
+  if (!chats.length) chats.push(makeChat());
+  if (currentId === id) currentId = chats[0].id;
+  saveChats();
+  renderChat();
+  renderList();
+}
+
+// ---------- Menu ----------
+function openDrawer() {
+  renderList();
+  drawer.classList.add('open');
+  overlay.classList.add('show');
+}
+
+function closeDrawer() {
+  drawer.classList.remove('open');
+  overlay.classList.remove('show');
+}
+
+document.getElementById('menuBtn').onclick = () => {
+  drawer.classList.contains('open') ? closeDrawer() : openDrawer();
+};
+overlay.onclick = closeDrawer;
+document.getElementById('newChat').onclick = newChat;
+
+// ---------- Yardimcilar ----------
+function getKey() {
+  let key = localStorage.getItem('apollo_key');
+  if (!key) {
+    key = prompt('Gemini API anahtar\u0131n\u0131 gir:');
+    if (key) localStorage.setItem('apollo_key', key.trim());
+  }
+  return key;
+}
+
+function addMsg(text, cls, imgSrc) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + cls;
+  if (imgSrc) {
+    const img = document.createElement('img');
+    img.src = imgSrc;
+    d.appendChild(img);
+  }
+  if (cls.includes('bot')) {
+    fillContent(d, text);
+  } else {
+    d.appendChild(document.createTextNode(text));
+  }
+  chatEl.appendChild(d);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return d;
+}
+
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const max = 1024;
+      const s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * s);
+      c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => reject(new Error('G\u00f6rsel okunamad\u0131'));
+    img.src = url;
+  });
+}
+
+function clearPending() {
+  pendingImage = null;
+  preview.style.display = 'none';
+  previewImg.src = '';
+}
+
+function setBusy(busy) {
+  sendBtn.disabled = busy;
+  input.disabled = busy;
+  attachBtn.disabled = busy;
+  micBtn.disabled = busy;
+}
+
+// ---------- Fotograf ----------
+attachBtn.onclick = () => fileInput.click();
+
+fileInput.onchange = async (e) => {
+  const file = e.target.files[0];
+  fileInput.value = '';
+  if (!file) return;
+  try {
+    pendingImage = await compressImage(file);
+    previewImg.src = pendingImage;
+    preview.style.display = 'flex';
+  } catch (err) {
+    addMsg('Hata: ' + err.message, 'bot error');
+  }
+};
+
+document.getElementById('removeImg').onclick = clearPending;
+
+// ---------- Ses: mikrofon izni ----------
+async function ensureMicPermission() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return true;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop());
+    return true;
+  } catch (err) {
+    showStatus('Mikrofon izni verilmedi. Taray\u0131c\u0131 ayarlar\u0131ndan mikrofon iznini a\u00e7.', 8000);
+    return false;
+  }
+}
+
+// ---------- Ses: konusarak yazma ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null;
+let listening = false;
+
+const SR_ERRORS = {
+  'not-allowed': 'Mikrofon izni verilmedi.',
+  'service-not-allowed': 'Konu\u015fma servisi izin vermedi.',
+  'no-speech': 'Ses alg\u0131lanamad\u0131. Tekrar dene.',
+  'audio-capture': 'Mikrofon bulunamad\u0131.',
+  'network': 'Konu\u015fma servisine ula\u015f\u0131lamad\u0131. \u0130nternetini kontrol et.',
+  'aborted': null
+};
+
+if (SR) {
+  rec = new SR();
+  rec.lang = 'tr-TR';
+  rec.interimResults = false;
+  rec.continuous = false;
+  rec.maxAlternatives = 1;
+  rec.onresult = (e) => {
+    const t = e.results[0][0].transcript;
+    input.value = t;
+    sendMessage();
+  };
+  rec.onend = () => {
+    listening = false;
+    micBtn.classList.remove('active');
+  };
+  rec.onerror = (e) => {
+    listening = false;
+    micBtn.classList.remove('active');
+    const msg = SR_ERRORS[e.error];
+    if (msg) showStatus(msg);
+  };
+} else {
+  micBtn.style.display = 'none';
+}
+
+async function startListening() {
+  if (!rec) {
+    showStatus('Bu taray\u0131c\u0131 konu\u015farak yazmay\u0131 desteklemiyor. Chrome kullan\u0131n.', 8000);
+    return;
+  }
+  if (listening) return;
+  const ok = await ensureMicPermission();
+  if (!ok) return;
+  try {
+    rec.start();
+    listening = true;
+    micBtn.classList.add('active');
+    showStatus('Dinleniyor...', 0);
+  } catch (err) {
+    showStatus('Dinleme ba\u015flat\u0131lamad\u0131: ' + err.message, 6000);
+  }
+}
+
+function stopListening() {
+  if (rec && listening) rec.stop();
+  listening = false;
+  micBtn.classList.remove('active');
+}
+
+micBtn.onclick = () => {
+  if (listening) {
+    stopListening();
+    statusEl.style.display = 'none';
+  } else {
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    startListening();
+  }
+};
+
+// ---------- Ses: sesli mod (cevabi okuma) ----------
+function updateVoiceBtn() {
+  voiceBtn.classList.toggle('on', voiceMode);
+}
+
+let trVoice = null;
+function pickVoice() {
+  if (!('speechSynthesis' in window)) return;
+  const voices = speechSynthesis.getVoices();
+  trVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('tr')) || null;
+}
+if ('speechSynthesis' in window) {
+  pickVoice();
+  speechSynthesis.onvoiceschanged = pickVoice;
+}
+
+voiceBtn.onclick = () => {
+  voiceMode = !voiceMode;
+  localStorage.setItem(VOICE_KEY, voiceMode ? '1' : '0');
+  if (!voiceMode && 'speechSynthesis' in window) speechSynthesis.cancel();
+  if (voiceMode) {
+    if (!('speechSynthesis' in window)) showStatus('Bu taray\u0131c\u0131 sesli okumay\u0131 desteklemiyor.', 8000);
+    else if (!SR) showStatus('Bu taray\u0131c\u0131da konu\u015fma tan\u0131ma yok. Sadece cevaplar okunacak.', 8000);
+    else showStatus('Sesli mod a\u00e7\u0131k. Cevab\u0131 okuyunca otomatik dinleyece\u011fim.', 4000);
+  }
+  updateVoiceBtn();
+};
+
+// Cevabi cumle cumle okur, bitince (sesli modda) tekrar dinler
+function speak(text) {
+  if (!voiceMode) return;
+  if (!('speechSynthesis' in window)) {
+    showStatus('Bu taray\u0131c\u0131 sesli okumay\u0131 desteklemiyor.', 6000);
+    return;
+  }
+  speechSynthesis.cancel();
+
+  const plain = text
+    .replace(/```[\s\S]*?```/g, ' Kod blo\u011fu. ')
+    .replace(/[*#`_]/g, '')
+    .trim();
+  const parts = plain.match(/[^.!?\n]+[.!?]?/g) || [plain];
+
+  parts.forEach((p, i) => {
+    const s = p.trim();
+    if (!s) return;
+    const u = new SpeechSynthesisUtterance(s);
+    u.lang = 'tr-TR';
+    if (trVoice) u.voice = trVoice;
+    u.onerror = (e) => {
+      if (e.error !== 'interrupted' && e.error !== 'canceled')
+        showStatus('Sesli okuma hatas\u0131: ' + e.error, 6000);
+    };
+    if (i === parts.length - 1) {
+      u.onend = () => {
+        if (voiceMode) setTimeout(startListening, 400);
+      };
+    }
+    speechSynthesis.speak(u);
+  });
+}
+
+// ---------- Diger butonlar ----------
+document.getElementById('resetKey').onclick = () => {
+  localStorage.removeItem('apollo_key');
+  alert('Anahtar silindi. Bir sonraki mesajda yeniden istenecek.');
+};
+
+// ---------- Mesaj gonderme ----------
+async function sendMessage() {
+  const text = input.value.trim();
+  if (!text && !pendingImage) return;
+
+  const key = getKey();
+  if (!key) { addMsg('API anahtar\u0131 girilmedi.', 'bot'); return; }
+
+  const c = cur();
+
+  const imgSrc = pendingImage;
+  const parts = [];
+  if (imgSrc) {
+    parts.push({ inlineData: { mimeType: 'image/jpeg', data: imgSrc.split(',')[1] } });
+  }
+  parts.push({ text: text || 'Bu foto\u011fraf\u0131 a\u00e7\u0131kla.' });
+
+  input.value = '';
+  clearPending();
+  addMsg(text || 'Foto\u011fraf g\u00f6nderildi', 'user', imgSrc);
+  c.messages.push({ role: 'user', parts });
+  if (c.title === 'Yeni sohbet') c.title = titleFrom(text);
+  renderList();
+
+  const thinking = addMsg('D\u00fc\u015f\u00fcn\u00fcyorum...', 'bot');
+
+  setBusy(true);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: SYSTEM_TEXT }] },
+          contents: c.messages
+        })
+      }
+    );
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || 'API hatas\u0131');
+
+    const reply = data.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || 'Cevap al\u0131namad\u0131.';
+    c.messages.push({ role: 'model', parts: [{ text: reply }] });
+    fillContent(thinking, reply);
+    saveChats();
+    speak(reply);
+  } catch (err) {
+    thinking.textContent = err.name === 'AbortError'
+      ? 'Hata: Model 90 saniyede cevap vermedi. Tekrar dene.'
+      : 'Hata: ' + err.message;
+    thinking.classList.add('error');
+    c.messages.pop();
+  } finally {
+    clearTimeout(timer);
+    setBusy(false);
+    input.focus();
+  }
+}
+
+form.onsubmit = (e) => {
+  e.preventDefault();
+  sendMessage();
+};
+
+// ---------- Baslangic ----------
+loadChats();
+saveChats();
+renderChat();
+renderList();
+updateVoiceBtn();
+</script>
+</body>
+</html>
